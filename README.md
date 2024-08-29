@@ -1,7 +1,7 @@
 # Disclaimer
 This is just for educational and authorized testing scenarios. The author of this modified script expressly disclaim all liabilities and responsibilities for any unauthorized or illicit use of the tool and not responsible for any consequent damages, losses, or repercussions stemming from the misuse or misapplication of this modified script.
 
-# Snagging creds from locked machines using android device
+# Android Snag Creds
 Capture windows NTLMv2 hashes just using an android device. This is just another implementation of bash bunny QuickCreds from Hak5.
 
 ## What is this ?
