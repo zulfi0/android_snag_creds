@@ -26,8 +26,9 @@ but this is on android.
 
 ## Prerequisite
 1. Rooted Android device (this script was tested using redmi note 8 (A10) and poco x3 NFC (A13)).
-2. Install linux chroot in android [here](https://github.com/zulfi0/install_rootfs_android) (tested on ubuntu 22.04 arm64 rootfs)
-3. usb cable
+2. busybox (no need if using KernelSu)
+3. Install linux chroot in android [here](https://github.com/zulfi0/install_rootfs_android) (tested on ubuntu 22.04 arm64 rootfs)
+4. usb cable
 
 ## Setup
 Inside android su shell:
@@ -55,6 +56,7 @@ Here's another trick:
 
 You can launch HID attack through SSH by enabling HID interface using the `usbarsenal` and setup SSH to the chroot with VPN. I'd like to call it sshid (pronounced: esessid)
 
+
 ## Questions ?
 
 **Q:** Does the Android need to be plugged into the target computer first?  
@@ -68,6 +70,13 @@ You can launch HID attack through SSH by enabling HID interface using the `usbar
 
 **Q:** I have some ideas to improve the script. Can I modify the script?  
 **A:** Yes, changes and improvements are welcome.
+
+## TODO
+
+there are things to do in the near future:
+1. add demo and slide presentation.
+2. add flashlight method for Android 14.
+3. use latest responder.
 
 ---
 ### Credits
