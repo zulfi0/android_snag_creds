@@ -7,7 +7,11 @@
 ## like "function0" or "f1". That makes us harder to determine what instance name or what functions should be configured for users.
 ## That said, this script may not work on other devices even they are already using USB ConfigFs.
 
-BUSYBOX="/data/adb/ksu/bin/busybox"
+#kernelSu Only
+#BUSYBOX="/data/adb/ksu/bin/busybox"
+
+#others
+BUSYBOX=$(which busybox)
 
 ## First to check if the kernel is supporting usb configfs. ##
 if [ ! -d /config/usb_gadget -o -f /sys/devices/virtual/android_usb/android0/enable ]; then
