@@ -39,18 +39,19 @@ Inside android su shell:
 Note: in order the target recognize our device as ethernet adapter we need to set vendor id `0x04B3` and product id `0x4010` (IBM USB Remote NDIS Network Device usb and vendor ID)
 
 Inside the linux chroot:
-1. install python2, iproute2, iptables, isc-dhcp-common and isc-dhpc-server.
-2. install the `responder-bunny.deb` from this repo (downloaded from [Hak5's forum](https://forums.hak5.org/topic/40971-info-tools/))
+1. install responder, iproute2, iptables, isc-dhcp-common and isc-dhcp-server.
+2. ~~install the `responder-bunny.deb` from this repo (downloaded from [Hak5's forum](https://forums.hak5.org/topic/40971-info-tools/))~~
 3. Run the modified script:
 ```bash
 ./usbtethering_linux -o rmnet_data1 -i rndis0 -A 172.16.64.10 -B 172.16.64.10 -C 172.16.64.1 -D 255.255.255.0
 ```
-Note: you can use `wlan*` interface if you are connected to WiFi, or if you use simcard you can use `rmnet_data*`.
+Optionally add `-N flash` if you want the flashlight to blink instead of the phone vibrating when NTLM is captured (default notify method is vibrate).
 
----
+Note: you can use wlan* interface if you are connected to WiFi, or if you use simcard you can use rmnet_data*.
+
 Now you are ready to plug in the android to the target computer.
 
-The modified script will automatically detect if NTLM has been captured inside `/tools/responder/logs/` directory. To indicate the NTLM has been captured the modified script will turn on your flashlight automatically.
+The modified script will automatically detect if NTLM has been captured inside `/usr/share/responder/logs/` directory. Once captured, it will notify you — by default it vibrates the phone, or flashes the torch light instead if you passed `-N flash`.
 
 Here's another trick:
 
@@ -76,7 +77,7 @@ You can launch HID attack through SSH by enabling HID interface using the `usbar
 there are things to do in the near future:
 1. add demo and slide presentation.
 2. add flashlight method for Android 14.
-3. use latest responder.
+3. ~~use latest responder.~~
 
 ---
 ### Credits
